@@ -1,0 +1,23 @@
+provider = "azure"
+
+azure_tenant="{{ oauth2_proxy_azure_tenant }}"
+client_id = "{{ oauth2_proxy_client_id }}"
+client_secret = "{{ oauth2_proxy_client_secret }}"
+
+http_address = "127.0.0.1:4180"
+redirect_url = "http://localhost:8080/oauth2/callback"
+
+upstreams = [
+    "http://127.0.0.1/"
+]
+
+email_domains = [
+   "{{ oauth2_proxy_email_domain }}"
+]
+
+cookie_name = "_oauth2_proxy"
+cookie_secret = "{{ oauth2_proxy_cookie_secret }}"
+cookie_domain = "localhost"
+cookie_expire = "1h"
+cookie_secure = false
+cookie_httponly = true

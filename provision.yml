@@ -1,0 +1,130 @@
+---
+
+- name: Setup
+  hosts: all
+  gather_facts: no
+
+  vars_files:
+    - vars.yml
+
+  tasks:
+
+    - name: Disable APT autoupdate services
+      become: yes
+      raw: "systemctl disable --now {{ item }}"
+      changed_when: no
+      with_items:
+        - 'apt-daily.service'
+        - 'apt-daily.timer'
+        - 'apt-daily-upgrade.service'
+        - 'apt-daily-upgrade.timer'
+
+    - name: Reload systemctl daemon to apply the APT autoupdate changes
+      become: yes
+      raw: systemctl daemon-reload
+      changed_when: no
+
+    - name: Wait for automatic system updates
+      become: yes
+      raw: while lsof /var/lib/dpkg/lock; do sleep 5; done;
+      changed_when: no
+
+    - name: Install Python 2 for Ansible if needed
+      become: yes
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
+      changed_when: no
+      register: bootstrap_python
+      until: bootstrap_python is succeeded
+      retries: 2
+      delay: 5
+
+    - name: Grab facts with Python definitely installed
+      setup:
+
+    - name: Update apt
+      become: yes
+      apt:
+        cache_valid_time: 1800
+        update_cache: yes
+
+    - name: Install Nginx
+      become: yes
+      apt:
+        name:
+          - nginx
+          - nginx-extras
+
+    - name: Create oauth2_proxy directory
+      become: yes
+      file:
+        path: /opt/oauth2_proxy
+        state: directory
+
+    - name: Download oauth2_proxy
+      become: yes
+      get_url:
+        dest: "/usr/local/src/oauth2_proxy-2.4.linux-amd64.go1.11.2.tar.gz"
+        url: "https://github.com/ploxiln/oauth2_proxy/releases/download/v2.4/oauth2_proxy-2.4.linux-amd64.go1.11.2.tar.gz"
+
+    - name: Unarchive oauth2_proxy
+      become: yes
+      unarchive:
+        creates:  /opt/oauth2_proxy/oauth2_proxy-2.4.linux-amd64
+        dest: /opt/oauth2_proxy
+        remote_src: yes
+        src: "/usr/local/src/oauth2_proxy-2.4.linux-amd64.go1.11.2.tar.gz"
+        extra_opts:
+          - "--strip-components=1"
+
+    - name: Create nginx config
+      become: yes
+      copy:
+        dest: /etc/nginx/sites-available/default
+        src: nginx.default.conf
+      notify:
+        - restart nginx
+
+    - name: Add oauth2_proxy systemd
+      become: yes
+      copy:
+        dest: /lib/systemd/system/oauth2_proxy.service
+        mode: 0755
+        src: service.systemd
+      notify:
+        - start oauth2_proxy
+
+    - name: Enable oauth2_proxy Service
+      become: yes
+      systemd:
+        name: oauth2_proxy
+        enabled: yes
+      notify:
+        - start oauth2_proxy
+
+    - name: Create oauth2_proxy config
+      become: yes
+      template:
+        dest: /opt/oauth2_proxy/config.cfg
+        src: oauth2_proxy.cfg.j2
+      notify:
+        - restart oauth2_proxy
+
+  handlers:
+
+    - name: restart nginx
+      become: yes
+      service:
+        name: nginx
+        state: restarted
+
+    - name: start oauth2_proxy
+      become: yes
+      service:
+        name: oauth2_proxy
+        state: started
+
+    - name: restart oauth2_proxy
+      become: yes
+      service:
+        name: oauth2_proxy
+        state: restarted

@@ -1,0 +1,23 @@
+[Unit]
+Description=oauth2 proxy
+After=network.target
+ 
+[Service]
+Type=simple
+
+Restart=on-failure
+RestartSec=10
+
+ExecStart=/opt/oauth2_proxy/oauth2_proxy-2.4.linux-amd64 -config=/opt/oauth2_proxy/config.cfg
+
+# make sure log directory exists and owned by syslog
+PermissionsStartOnly=true
+ExecStartPre=/bin/mkdir -p /var/log/oauth2_proxy
+ExecStartPre=/bin/chown syslog:adm /var/log/oauth2_proxy
+ExecStartPre=/bin/chmod 755 /var/log/oauth2_proxy
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=oauth2_proxy
+ 
+[Install]
+WantedBy=multi-user.target
